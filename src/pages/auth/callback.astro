@@ -123,7 +123,8 @@
 
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) {
-						throw new Error(data.error || `HTTP ${res.status}`);
+						const detail = data.details || data.error || `HTTP ${res.status}`;
+						throw new Error(typeof detail === 'object' ? JSON.stringify(detail) : detail);
 					}
 
 					// Store token & user data in localStorage
