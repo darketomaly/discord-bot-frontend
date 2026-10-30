@@ -236,15 +236,19 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			}
 
 			.status-bar {
-				font-size: 0.8rem;
-				padding: 4px 8px;
-				border-radius: 4px;
+				width: 100%;
+				font-size: 0.85rem;
+				padding: 8px 12px;
+				border-radius: 6px;
 				display: none;
+				word-break: break-all;
 			}
 
 			.status-bar.info {
 				display: block;
-				color: var(--text-muted);
+				background-color: rgba(88, 101, 242, 0.15);
+				color: #dbdee1;
+				border: 1px solid rgba(88, 101, 242, 0.3);
 			}
 
 			.status-bar.success {
@@ -483,7 +487,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 					const res = await fetch(`${baseUrl}/discord/channels`);
 					if (!res.ok) {
 						const errData = await res.json().catch(() => ({}));
-						throw new Error(errData.error || `HTTP ${res.status}`);
+						throw new Error(errData.error || `HTTP ${res.status} (${res.statusText || 'Error'})`);
 					}
 
 					const guilds = await res.json();
@@ -491,7 +495,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 
 					if (!Array.isArray(guilds) || guilds.length === 0) {
 						channelSelect.innerHTML = '<option value="">No servers available</option>';
-						setStatus('Bot has no servers or is starting up', 'error');
+						setStatus('Bot has no servers or is starting up', 'error', false);
 						return;
 					}
 
@@ -518,12 +522,14 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 					});
 
 					channelSelect.disabled = false;
-					setStatus(`Loaded ${totalChannels} channels`, 'success');
+					setStatus(`✓ Connected: Loaded ${guilds.length} servers & ${totalChannels} channels`, 'success');
 					updateSendButtonState();
 				} catch (err: any) {
-					console.error('Failed to load channels:', err);
 					channelSelect.innerHTML = '<option value="">Failed to connect</option>';
-					setStatus(`Backend offline (${err.message})`, 'error', false);
+					const detail = err.name === 'TypeError'
+						? `CORS / Network Error: Could not reach ${baseUrl}/discord/channels`
+						: err.message;
+					setStatus(`Error: ${detail}`, 'error', false);
 					updateSendButtonState();
 				}
 			}
