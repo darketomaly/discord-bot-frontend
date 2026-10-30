@@ -468,15 +468,6 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				<div class="editor-wrapper">
 					<div class="action-bar">
 						<div class="select-wrapper">
-							<label for="backend-url" class="select-label">API:</label>
-							<input
-								type="text"
-								id="backend-url"
-								placeholder="https://api.darketomaly.com"
-								style="background-color: var(--bg-input); color: var(--text-normal); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; padding: 6px 10px; font-size: 0.85rem; width: 190px;"
-							/>
-						</div>
-						<div class="select-wrapper" style="flex: 2;">
 							<label for="channel-select" class="select-label">Channel:</label>
 							<select id="channel-select" disabled>
 								<option value="">Loading channels...</option>
@@ -512,7 +503,6 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			const input = document.getElementById('markdown-input') as HTMLTextAreaElement | null;
 			const output = document.getElementById('markdown-output');
 			const charCount = document.getElementById('char-count');
-			const backendUrlInput = document.getElementById('backend-url') as HTMLInputElement | null;
 			const channelSelect = document.getElementById('channel-select') as HTMLSelectElement | null;
 			const refreshBtn = document.getElementById('refresh-btn') as HTMLButtonElement | null;
 			const sendBtn = document.getElementById('send-btn') as HTMLButtonElement | null;
@@ -524,20 +514,11 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			const userName = document.getElementById('user-name');
 			const logoutBtn = document.getElementById('logout-btn') as HTMLButtonElement | null;
 
-			const DEFAULT_BACKEND_URL = (import.meta as any).env?.PUBLIC_BACKEND_URL || 'https://api.darketomaly.com';
+			// Fixed API backend URL
+			const BACKEND_BASE_URL = 'https://api.darketomaly.com';
 
 			function getBackendBaseUrl(): string {
-				let url = backendUrlInput?.value.trim() || DEFAULT_BACKEND_URL;
-				return url.replace(/\/+$/, '');
-			}
-
-			if (backendUrlInput) {
-				const savedUrl = localStorage.getItem('discord_backend_url');
-				backendUrlInput.value = savedUrl || DEFAULT_BACKEND_URL;
-				backendUrlInput.addEventListener('change', () => {
-					localStorage.setItem('discord_backend_url', backendUrlInput.value.trim());
-					loadChannels();
-				});
+				return BACKEND_BASE_URL;
 			}
 
 			function setStatus(text: string, type: 'info' | 'success' | 'error' = 'info', autoClear = true) {
@@ -591,15 +572,19 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				setStatus('Getting Discord authorization URL...', 'info', false);
 
 				try {
-					const res = await fetch(`${baseUrl}/discord/auth/url?redirect_uri=${encodeURIComponent(redirectUri)}`);
+					const targetUrl = `${baseUrl}/discord/auth/url?redirect_uri=${encodeURIComponent(redirectUri)}`;
+					const res = await fetch(targetUrl);
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok || !data.url) {
-						throw new Error(data.error || 'Failed to generate OAuth URL');
+						throw new Error(data.error || `HTTP ${res.status} from ${targetUrl}`);
 					}
 					window.location.href = data.url;
 				} catch (err: any) {
 					console.error('Login error:', err);
-					setStatus(`OAuth Error: ${err.message}`, 'error', false);
+					const msg = err.name === 'TypeError'
+						? `CORS / Network Error: Could not reach ${baseUrl}/discord/auth/url`
+						: err.message;
+					setStatus(`OAuth Error: ${msg}`, 'error', false);
 				}
 			}
 
