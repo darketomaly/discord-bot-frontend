@@ -733,6 +733,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 
 			let editingMessageId: string | null = null;
 			let existingAttachmentUrl: string | null = null;
+			let removeAttachmentOnEdit: boolean = false;
 
 			let selectedFile: File | null = null;
 			let objectUrl: string | null = null;
@@ -904,6 +905,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 
 			function setEditMode(msgId: string | null) {
 				editingMessageId = msgId;
+				removeAttachmentOnEdit = false;
 				if (editingMessageId) {
 					if (editModeIndicator) editModeIndicator.style.display = 'flex';
 					if (editingMessageIdSpan) editingMessageIdSpan.textContent = editingMessageId;
@@ -916,6 +918,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 					if (editModeIndicator) editModeIndicator.style.display = 'none';
 					if (editingMessageIdSpan) editingMessageIdSpan.textContent = '';
 					existingAttachmentUrl = null;
+					removeAttachmentOnEdit = false;
 					if (sendBtn) {
 						const span = sendBtn.querySelector('span');
 						if (span) span.textContent = 'Send Message';
@@ -933,7 +936,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				const hasExistingAttachment = Boolean(existingAttachmentUrl);
 
 				if (editingMessageId) {
-					sendBtn.disabled = !hasChannel || (!hasText && !hasFile && !hasExistingAttachment);
+					sendBtn.disabled = !hasChannel || (!hasText && !hasFile && !hasExistingAttachment && !removeAttachmentOnEdit);
 				} else {
 					sendBtn.disabled = !hasChannel || (!hasText && !hasFile);
 				}
@@ -949,6 +952,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 
 				if (selectedFile) {
 					existingAttachmentUrl = null;
+					removeAttachmentOnEdit = false;
 					if (fileNameDisplay) fileNameDisplay.textContent = `${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)`;
 					if (imageClearBtn) imageClearBtn.style.display = 'block';
 
@@ -962,7 +966,11 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 						if (previewImageContainer) previewImageContainer.style.display = 'block';
 						if (previewImage) previewImage.src = existingAttachmentUrl;
 					} else {
-						if (fileNameDisplay) fileNameDisplay.textContent = 'No image selected';
+						if (editingMessageId && removeAttachmentOnEdit) {
+							if (fileNameDisplay) fileNameDisplay.textContent = 'Image will be removed on update';
+						} else {
+							if (fileNameDisplay) fileNameDisplay.textContent = 'No image selected';
+						}
 						if (imageClearBtn) imageClearBtn.style.display = 'none';
 						if (previewImageContainer) previewImageContainer.style.display = 'none';
 						if (previewImage) previewImage.src = '';
@@ -974,6 +982,9 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			}
 
 			function clearAttachment() {
+				if (editingMessageId && (existingAttachmentUrl || selectedFile)) {
+					removeAttachmentOnEdit = true;
+				}
 				existingAttachmentUrl = null;
 				handleFileSelection(null);
 			}
@@ -1086,6 +1097,9 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 						const payload: Record<string, any> = { channelId, content };
 						if (isEditing && editingMessageId) {
 							payload['messageId'] = editingMessageId;
+							if (removeAttachmentOnEdit) {
+								payload['removeAttachment'] = true;
+							}
 						}
 						body = JSON.stringify(payload);
 					}
@@ -1104,7 +1118,9 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 					setStatus(isEditing ? 'Message updated successfully!' : 'Message sent successfully!', 'success');
 					
 					if (isEditing) {
-						// Keep current state or reset to new message? If file was updated, update existingAttachmentUrl
+						if (removeAttachmentOnEdit) {
+							removeAttachmentOnEdit = false;
+						}
 						if (selectedFile) {
 							handleFileSelection(null);
 						}
