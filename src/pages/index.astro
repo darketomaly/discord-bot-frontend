@@ -149,6 +149,116 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				display: flex;
 				flex-direction: column;
 				padding: 12px;
+				gap: 12px;
+				min-height: 0;
+			}
+
+			.action-bar {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 10px;
+				background-color: var(--bg-header);
+				padding: 10px 14px;
+				border-radius: 6px;
+				border: 1px solid rgba(255, 255, 255, 0.05);
+			}
+
+			.select-wrapper {
+				flex: 1;
+				min-width: 200px;
+				display: flex;
+				align-items: center;
+				gap: 8px;
+			}
+
+			.select-label {
+				font-size: 0.8rem;
+				font-weight: 600;
+				color: var(--text-muted);
+				white-space: nowrap;
+			}
+
+			#channel-select {
+				flex: 1;
+				background-color: var(--bg-input);
+				color: var(--text-normal);
+				border: 1px solid rgba(255, 255, 255, 0.1);
+				border-radius: 4px;
+				padding: 8px 10px;
+				font-size: 0.88rem;
+				outline: none;
+				cursor: pointer;
+			}
+
+			#channel-select:focus {
+				border-color: var(--accent);
+			}
+
+			.btn-refresh {
+				background-color: transparent;
+				color: var(--text-muted);
+				border: 1px solid rgba(255, 255, 255, 0.1);
+				border-radius: 4px;
+				padding: 8px 12px;
+				font-size: 0.82rem;
+				cursor: pointer;
+				transition: all 0.15s ease;
+			}
+
+			.btn-refresh:hover {
+				color: var(--text-header);
+				background-color: rgba(255, 255, 255, 0.05);
+			}
+
+			.btn-send {
+				background-color: var(--accent);
+				color: #fff;
+				border: none;
+				border-radius: 4px;
+				padding: 8px 18px;
+				font-size: 0.88rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: opacity 0.15s ease, background-color 0.15s ease;
+				display: flex;
+				align-items: center;
+				gap: 6px;
+			}
+
+			.btn-send:hover:not(:disabled) {
+				background-color: #4752c4;
+			}
+
+			.btn-send:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+
+			.status-bar {
+				font-size: 0.8rem;
+				padding: 4px 8px;
+				border-radius: 4px;
+				display: none;
+			}
+
+			.status-bar.info {
+				display: block;
+				color: var(--text-muted);
+			}
+
+			.status-bar.success {
+				display: block;
+				background-color: rgba(46, 204, 113, 0.15);
+				color: #2ecc71;
+				border: 1px solid rgba(46, 204, 113, 0.3);
+			}
+
+			.status-bar.error {
+				display: block;
+				background-color: rgba(231, 76, 60, 0.15);
+				color: #e74c3c;
+				border: 1px solid rgba(231, 76, 60, 0.3);
 			}
 
 			#markdown-input {
@@ -279,6 +389,29 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 					<span id="char-count">0 characters</span>
 				</div>
 				<div class="editor-wrapper">
+					<div class="action-bar">
+						<div class="select-wrapper">
+							<label for="backend-url" class="select-label">API:</label>
+							<input
+								type="text"
+								id="backend-url"
+								placeholder="https://api.darketomaly.com"
+								style="background-color: var(--bg-input); color: var(--text-normal); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; padding: 6px 10px; font-size: 0.85rem; width: 190px;"
+							/>
+						</div>
+						<div class="select-wrapper" style="flex: 2;">
+							<label for="channel-select" class="select-label">Channel:</label>
+							<select id="channel-select" disabled>
+								<option value="">Loading channels...</option>
+							</select>
+							<button type="button" id="refresh-btn" class="btn-refresh" title="Reload channels">↻</button>
+						</div>
+						<button type="button" id="send-btn" class="btn-send" disabled>
+							<span>Send Message</span>
+						</button>
+						<div id="status-msg" class="status-bar"></div>
+					</div>
+
 					<textarea
 						id="markdown-input"
 						placeholder="Type Discord markdown here..."
@@ -302,6 +435,139 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			const input = document.getElementById('markdown-input') as HTMLTextAreaElement | null;
 			const output = document.getElementById('markdown-output');
 			const charCount = document.getElementById('char-count');
+			const backendUrlInput = document.getElementById('backend-url') as HTMLInputElement | null;
+			const channelSelect = document.getElementById('channel-select') as HTMLSelectElement | null;
+			const refreshBtn = document.getElementById('refresh-btn') as HTMLButtonElement | null;
+			const sendBtn = document.getElementById('send-btn') as HTMLButtonElement | null;
+			const statusMsg = document.getElementById('status-msg');
+
+			const DEFAULT_BACKEND_URL = (import.meta as any).env?.PUBLIC_BACKEND_URL || 'https://api.darketomaly.com';
+
+			function getBackendBaseUrl(): string {
+				let url = backendUrlInput?.value.trim() || DEFAULT_BACKEND_URL;
+				return url.replace(/\/+$/, '');
+			}
+
+			if (backendUrlInput) {
+				const savedUrl = localStorage.getItem('discord_backend_url');
+				backendUrlInput.value = savedUrl || DEFAULT_BACKEND_URL;
+				backendUrlInput.addEventListener('change', () => {
+					localStorage.setItem('discord_backend_url', backendUrlInput.value.trim());
+					loadChannels();
+				});
+			}
+
+			function setStatus(text: string, type: 'info' | 'success' | 'error' = 'info', autoClear = true) {
+				if (!statusMsg) return;
+				statusMsg.className = `status-bar ${type}`;
+				statusMsg.textContent = text;
+				statusMsg.style.display = 'block';
+
+				if (autoClear && type !== 'info') {
+					setTimeout(() => {
+						if (statusMsg.textContent === text) {
+							statusMsg.style.display = 'none';
+						}
+					}, 4000);
+				}
+			}
+
+			async function loadChannels() {
+				if (!channelSelect) return;
+				channelSelect.disabled = true;
+				channelSelect.innerHTML = '<option value="">Loading channels...</option>';
+				const baseUrl = getBackendBaseUrl();
+				setStatus(`Connecting to ${baseUrl}...`, 'info', false);
+
+				try {
+					const res = await fetch(`${baseUrl}/discord/channels`);
+					if (!res.ok) {
+						const errData = await res.json().catch(() => ({}));
+						throw new Error(errData.error || `HTTP ${res.status}`);
+					}
+
+					const guilds = await res.json();
+					channelSelect.innerHTML = '';
+
+					if (!Array.isArray(guilds) || guilds.length === 0) {
+						channelSelect.innerHTML = '<option value="">No servers available</option>';
+						setStatus('Bot has no servers or is starting up', 'error');
+						return;
+					}
+
+					const defaultOpt = document.createElement('option');
+					defaultOpt.value = '';
+					defaultOpt.textContent = '-- Select a channel --';
+					channelSelect.appendChild(defaultOpt);
+
+					let totalChannels = 0;
+					guilds.forEach((guild: any) => {
+						const optgroup = document.createElement('optgroup');
+						optgroup.label = guild.name;
+
+						guild.channels?.forEach((channel: any) => {
+							totalChannels++;
+							const opt = document.createElement('option');
+							opt.value = channel.id;
+							const categoryPrefix = channel.category ? `[${channel.category}] ` : '';
+							opt.textContent = `# ${categoryPrefix}${channel.name}`;
+							optgroup.appendChild(opt);
+						});
+
+						channelSelect.appendChild(optgroup);
+					});
+
+					channelSelect.disabled = false;
+					setStatus(`Loaded ${totalChannels} channels`, 'success');
+					updateSendButtonState();
+				} catch (err: any) {
+					console.error('Failed to load channels:', err);
+					channelSelect.innerHTML = '<option value="">Failed to connect</option>';
+					setStatus(`Backend offline (${err.message})`, 'error', false);
+					updateSendButtonState();
+				}
+			}
+
+			function updateSendButtonState() {
+				if (!sendBtn || !channelSelect || !input) return;
+				const hasChannel = Boolean(channelSelect.value);
+				const hasText = input.value.trim().length > 0;
+				sendBtn.disabled = !hasChannel || !hasText;
+			}
+
+			async function sendMessage() {
+				if (!channelSelect?.value || !input?.value.trim()) return;
+				if (!sendBtn) return;
+
+				const channelId = channelSelect.value;
+				const content = input.value;
+				const baseUrl = getBackendBaseUrl();
+
+				sendBtn.disabled = true;
+				sendBtn.textContent = 'Sending...';
+				setStatus('Sending message to Discord...', 'info', false);
+
+				try {
+					const res = await fetch(`${baseUrl}/discord/send`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ channelId, content })
+					});
+
+					const result = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						throw new Error(result.error || `Failed with status ${res.status}`);
+					}
+
+					setStatus('Message sent successfully!', 'success');
+				} catch (err: any) {
+					console.error('Error sending message:', err);
+					setStatus(`Error: ${err.message}`, 'error', false);
+				} finally {
+					sendBtn.textContent = 'Send Message';
+					updateSendButtonState();
+				}
+			}
 
 			function updatePreview() {
 				if (!input || !output) return;
@@ -311,6 +577,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				}
 				output.innerHTML = parseDiscordMarkdown(text);
 				attachSpoilerListeners();
+				updateSendButtonState();
 			}
 
 			function attachSpoilerListeners() {
@@ -333,6 +600,20 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				input.addEventListener('input', updatePreview);
 				updatePreview();
 			}
+
+			if (channelSelect) {
+				channelSelect.addEventListener('change', updateSendButtonState);
+			}
+
+			if (refreshBtn) {
+				refreshBtn.addEventListener('click', loadChannels);
+			}
+
+			if (sendBtn) {
+				sendBtn.addEventListener('click', sendMessage);
+			}
+
+			loadChannels();
 		</script>
 	</body>
 </html>
