@@ -1,0 +1,338 @@
+---
+import { parseDiscordMarkdown } from '../utils/discordMarkdown';
+
+const initialMarkdown = `Hello **world**! Welcome to the Discord markdown previewer.
+
+Here are some examples of what you can type:
+- **Bold text** with \`**bold**\`
+- *Italic text* with \`*italic*\` or _italic_ with \`_italic_\`
+- ***Bold & Italic*** with \`***text***\`
+- __Underlined text__ with \`__text__\`
+- ~~Strikethrough~~ with \`~~text~~\`
+- ||Spoiler alert: Click to reveal!|| with \`||spoiler||\`
+- Inline code like \`const x = 42;\`
+- Subtext with -# small details:
+-# This is quiet subtext!
+
+### Headers
+# Big Header (H1)
+## Medium Header (H2)
+### Small Header (H3)
+
+> Single line blockquote
+> Second line of quote
+
+\`\`\`javascript
+function greet(name) {
+  console.log("Hello, " + name + "!");
+}
+\`\`\`
+
+Check out [Astro](https://astro.build) or raw link https://discord.com!`;
+
+const initialHtml = parseDiscordMarkdown(initialMarkdown);
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Discord Markdown Previewer</title>
+		<style>
+			:root {
+				--bg-app: #1e1f22;
+				--bg-header: #2b2d31;
+				--bg-editor: #313338;
+				--bg-preview: #313338;
+				--bg-input: #383a40;
+				--text-normal: #dbdee1;
+				--text-muted: #949ba4;
+				--text-header: #f2f3f5;
+				--text-link: #00a8fc;
+				--code-bg: #2b2d31;
+				--quote-border: #4e5058;
+				--spoiler-bg: #242429;
+				--spoiler-revealed: #2b2d31;
+				--border-color: #1f2023;
+				--accent: #5865f2;
+			}
+
+			* {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+
+			body {
+				font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+				background-color: var(--bg-app);
+				color: var(--text-normal);
+				display: flex;
+				flex-direction: column;
+				height: 100vh;
+				overflow: hidden;
+			}
+
+			header {
+				background-color: var(--bg-header);
+				padding: 12px 24px;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				border-bottom: 1px solid var(--border-color);
+				box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+			}
+
+			header h1 {
+				font-size: 1.15rem;
+				font-weight: 700;
+				color: var(--text-header);
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+
+			header .badge {
+				background-color: var(--accent);
+				color: #fff;
+				font-size: 0.75rem;
+				padding: 2px 8px;
+				border-radius: 12px;
+				font-weight: 600;
+			}
+
+			.main-container {
+				flex: 1;
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 16px;
+				padding: 16px;
+				min-height: 0;
+			}
+
+			@media (max-width: 768px) {
+				.main-container {
+					grid-template-columns: 1fr;
+					grid-template-rows: 1fr 1fr;
+				}
+			}
+
+			.panel {
+				background-color: var(--bg-editor);
+				border-radius: 8px;
+				display: flex;
+				flex-direction: column;
+				overflow: hidden;
+				box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+				border: 1px solid rgba(255, 255, 255, 0.05);
+			}
+
+			.panel-header {
+				background-color: var(--bg-header);
+				padding: 10px 16px;
+				font-size: 0.85rem;
+				font-weight: 600;
+				color: var(--text-muted);
+				text-transform: uppercase;
+				letter-spacing: 0.5px;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				border-bottom: 1px solid var(--border-color);
+			}
+
+			.editor-wrapper {
+				flex: 1;
+				display: flex;
+				flex-direction: column;
+				padding: 12px;
+			}
+
+			#markdown-input {
+				width: 100%;
+				flex: 1;
+				background-color: var(--bg-input);
+				color: var(--text-normal);
+				border: 1px solid transparent;
+				border-radius: 6px;
+				padding: 14px;
+				font-family: "Consolas", "Courier New", Courier, monospace;
+				font-size: 0.92rem;
+				line-height: 1.5;
+				resize: none;
+				outline: none;
+				transition: border-color 0.15s ease;
+			}
+
+			#markdown-input:focus {
+				border-color: var(--accent);
+			}
+
+			.preview-wrapper {
+				flex: 1;
+				padding: 16px;
+				overflow-y: auto;
+				background-color: var(--bg-preview);
+				font-size: 0.95rem;
+				line-height: 1.45;
+				word-break: break-word;
+			}
+
+			/* Discord Message Styling */
+			:global(.discord-h1) {
+				font-size: 1.5rem;
+				font-weight: 700;
+				color: var(--text-header);
+				margin: 12px 0 6px 0;
+			}
+
+			:global(.discord-h2) {
+				font-size: 1.25rem;
+				font-weight: 700;
+				color: var(--text-header);
+				margin: 10px 0 4px 0;
+			}
+
+			:global(.discord-h3) {
+				font-size: 1.05rem;
+				font-weight: 700;
+				color: var(--text-header);
+				margin: 8px 0 4px 0;
+			}
+
+			:global(.discord-subtext) {
+				color: var(--text-muted);
+				font-size: 0.8rem;
+				display: block;
+				margin: 2px 0;
+			}
+
+			:global(.discord-quote) {
+				border-left: 4px solid var(--quote-border);
+				padding-left: 12px;
+				margin: 4px 0;
+				color: var(--text-normal);
+			}
+
+			:global(.discord-inline-code) {
+				background-color: var(--code-bg);
+				padding: 2px 5px;
+				border-radius: 4px;
+				font-family: "Consolas", monospace;
+				font-size: 0.88em;
+				color: var(--text-normal);
+			}
+
+			:global(.discord-code-block) {
+				background-color: var(--code-bg);
+				border: 1px solid rgba(0, 0, 0, 0.2);
+				border-radius: 6px;
+				padding: 10px 12px;
+				margin: 8px 0;
+				overflow-x: auto;
+				font-family: "Consolas", monospace;
+				font-size: 0.88em;
+				color: var(--text-normal);
+				line-height: 1.4;
+			}
+
+			:global(.discord-link) {
+				color: var(--text-link);
+				text-decoration: none;
+			}
+
+			:global(.discord-link:hover) {
+				text-decoration: underline;
+			}
+
+			:global(.discord-spoiler) {
+				background-color: var(--spoiler-bg);
+				color: transparent;
+				border-radius: 3px;
+				padding: 1px 4px;
+				cursor: pointer;
+				user-select: none;
+				transition: background-color 0.1s ease, color 0.1s ease;
+			}
+
+			:global(.discord-spoiler.revealed) {
+				background-color: var(--spoiler-revealed);
+				color: var(--text-normal);
+				cursor: text;
+				user-select: text;
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1>Discord Markdown Previewer</h1>
+			<span class="badge">Live Preview</span>
+		</header>
+
+		<main class="main-container">
+			<section class="panel">
+				<div class="panel-header">
+					<span>Write (Input)</span>
+					<span id="char-count">0 characters</span>
+				</div>
+				<div class="editor-wrapper">
+					<textarea
+						id="markdown-input"
+						placeholder="Type Discord markdown here..."
+						spellcheck="false"
+					>{initialMarkdown}</textarea>
+				</div>
+			</section>
+
+			<section class="panel">
+				<div class="panel-header">
+					<span>Read (Discord Preview)</span>
+					<span>Formatted</span>
+				</div>
+				<div class="preview-wrapper" id="markdown-output" set:html={initialHtml}></div>
+			</section>
+		</main>
+
+		<script>
+			import { parseDiscordMarkdown } from '../utils/discordMarkdown';
+
+			const input = document.getElementById('markdown-input') as HTMLTextAreaElement | null;
+			const output = document.getElementById('markdown-output');
+			const charCount = document.getElementById('char-count');
+
+			function updatePreview() {
+				if (!input || !output) return;
+				const text = input.value;
+				if (charCount) {
+					charCount.textContent = `${text.length} character${text.length === 1 ? '' : 's'}`;
+				}
+				output.innerHTML = parseDiscordMarkdown(text);
+				attachSpoilerListeners();
+			}
+
+			function attachSpoilerListeners() {
+				if (!output) return;
+				const spoilers = output.querySelectorAll('.discord-spoiler');
+				spoilers.forEach((spoiler) => {
+					spoiler.addEventListener('click', () => {
+						spoiler.classList.add('revealed');
+					});
+					spoiler.addEventListener('keydown', (e) => {
+						const event = e as KeyboardEvent;
+						if (event.key === 'Enter' || event.key === ' ') {
+							spoiler.classList.add('revealed');
+						}
+					});
+				});
+			}
+
+			if (input) {
+				input.addEventListener('input', updatePreview);
+				updatePreview();
+			}
+		</script>
+	</body>
+</html>
