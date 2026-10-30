@@ -1,0 +1,148 @@
+---
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Logging in with Discord...</title>
+		<style>
+			body {
+				font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+				background-color: #1e1f22;
+				color: #dbdee1;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				height: 100vh;
+				margin: 0;
+			}
+			.card {
+				background-color: #2b2d31;
+				border-radius: 8px;
+				padding: 32px 40px;
+				text-align: center;
+				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+				max-width: 400px;
+			}
+			h2 {
+				color: #f2f3f5;
+				margin-bottom: 12px;
+				font-size: 1.25rem;
+			}
+			p {
+				color: #949ba4;
+				font-size: 0.95rem;
+				line-height: 1.4;
+			}
+			.spinner {
+				border: 3px solid rgba(255, 255, 255, 0.1);
+				border-top-color: #5865f2;
+				border-radius: 50%;
+				width: 36px;
+				height: 36px;
+				animation: spin 0.8s linear infinite;
+				margin: 0 auto 20px auto;
+			}
+			@keyframes spin {
+				to { transform: rotate(360deg); }
+			}
+			.error {
+				color: #e74c3c;
+				margin-top: 16px;
+				font-size: 0.9rem;
+				display: none;
+			}
+			.retry-btn {
+				display: none;
+				margin-top: 16px;
+				background-color: #5865f2;
+				color: white;
+				padding: 8px 16px;
+				border-radius: 4px;
+				text-decoration: none;
+				font-size: 0.9rem;
+				font-weight: 600;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="card">
+			<div class="spinner" id="spinner"></div>
+			<h2 id="title">Authenticating with Discord</h2>
+			<p id="desc">Exchanging authorization code and loading your profile...</p>
+			<div id="error" class="error"></div>
+			<a href="/" id="retry-btn" class="retry-btn">Return to App</a>
+		</div>
+
+		<script>
+			async function handleAuth() {
+				const params = new URLSearchParams(window.location.search);
+				const code = params.get('code');
+				const errorParam = params.get('error_description') || params.get('error');
+
+				const title = document.getElementById('title');
+				const desc = document.getElementById('desc');
+				const spinner = document.getElementById('spinner');
+				const errorEl = document.getElementById('error');
+				const retryBtn = document.getElementById('retry-btn');
+
+				function showError(msg: string) {
+					if (spinner) spinner.style.display = 'none';
+					if (title) title.textContent = 'Login Failed';
+					if (desc) desc.textContent = 'Could not authenticate with Discord.';
+					if (errorEl) {
+						errorEl.textContent = msg;
+						errorEl.style.display = 'block';
+					}
+					if (retryBtn) retryBtn.style.display = 'inline-block';
+				}
+
+				if (errorParam) {
+					showError(errorParam);
+					return;
+				}
+
+				if (!code) {
+					showError('No authorization code provided by Discord.');
+					return;
+				}
+
+				const backendUrl = localStorage.getItem('discord_backend_url') || 'https://api.darketomaly.com';
+				const cleanBase = backendUrl.replace(/\/+$/, '');
+				const redirectUri = window.location.origin + '/auth/callback';
+
+				try {
+					const res = await fetch(`${cleanBase}/discord/auth/token`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ code, redirectUri })
+					});
+
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						throw new Error(data.error || `HTTP ${res.status}`);
+					}
+
+					// Store token & user data in localStorage
+					localStorage.setItem('discord_user_token', data.access_token);
+					localStorage.setItem('discord_user_profile', JSON.stringify(data.user));
+
+					if (title) title.textContent = 'Success!';
+					if (desc) desc.textContent = 'Redirecting back to editor...';
+
+					setTimeout(() => {
+						window.location.href = '/';
+					}, 500);
+				} catch (err: any) {
+					console.error('OAuth exchange error:', err);
+					showError(err.message || 'Error communicating with backend.');
+				}
+			}
+
+			handleAuth();
+		</script>
+	</body>
+</html>
