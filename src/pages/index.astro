@@ -274,6 +274,76 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				border-color: var(--accent);
 			}
 
+			.message-id-wrapper {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+			}
+
+			.input-message-id {
+				width: 170px;
+				background-color: var(--bg-input);
+				color: var(--text-normal);
+				border: 1px solid rgba(255, 255, 255, 0.1);
+				border-radius: 4px;
+				padding: 8px 10px;
+				font-size: 0.85rem;
+				outline: none;
+			}
+
+			.input-message-id:focus {
+				border-color: var(--accent);
+			}
+
+			.btn-load {
+				background-color: rgba(255, 255, 255, 0.08);
+				color: var(--text-normal);
+				border: 1px solid rgba(255, 255, 255, 0.15);
+				border-radius: 4px;
+				padding: 8px 12px;
+				font-size: 0.82rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: all 0.15s ease;
+			}
+
+			.btn-load:hover:not(:disabled) {
+				background-color: rgba(255, 255, 255, 0.15);
+				color: #fff;
+			}
+
+			.btn-load:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+
+			.edit-mode-indicator {
+				display: none;
+				align-items: center;
+				justify-content: space-between;
+				width: 100%;
+				background: rgba(88, 101, 242, 0.15);
+				border: 1px solid rgba(88, 101, 242, 0.35);
+				border-radius: 4px;
+				padding: 6px 10px;
+				font-size: 0.82rem;
+				color: #c9cdfb;
+			}
+
+			.edit-cancel-btn {
+				background: transparent;
+				color: var(--text-muted);
+				border: none;
+				font-size: 0.78rem;
+				cursor: pointer;
+				text-decoration: underline;
+				padding: 0 4px;
+			}
+
+			.edit-cancel-btn:hover {
+				color: #fff;
+			}
+
 			.file-input-wrapper {
 				width: 100%;
 				display: flex;
@@ -577,9 +647,23 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 							</select>
 							<button type="button" id="refresh-btn" class="btn-refresh" title="Reload channels">↻</button>
 						</div>
+						<div class="message-id-wrapper">
+							<input
+								type="text"
+								id="message-id-input"
+								class="input-message-id"
+								placeholder="Message ID (optional)"
+								title="Enter a Discord Message ID to load and edit"
+							/>
+							<button type="button" id="load-msg-btn" class="btn-load" title="Load message content">Load</button>
+						</div>
 						<button type="button" id="send-btn" class="btn-send" disabled>
 							<span>Send Message</span>
 						</button>
+						<div id="edit-mode-indicator" class="edit-mode-indicator">
+							<span>Editing message: <strong id="editing-message-id"></strong></span>
+							<button type="button" id="cancel-edit-btn" class="edit-cancel-btn">Cancel (New Message)</button>
+						</div>
 						<div class="file-input-wrapper">
 							<input
 								type="file"
@@ -640,6 +724,15 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			const imageClearBtn = document.getElementById('image-clear-btn') as HTMLButtonElement | null;
 			const previewImageContainer = document.getElementById('preview-image-container');
 			const previewImage = document.getElementById('preview-image') as HTMLImageElement | null;
+
+			const messageIdInput = document.getElementById('message-id-input') as HTMLInputElement | null;
+			const loadMsgBtn = document.getElementById('load-msg-btn') as HTMLButtonElement | null;
+			const editModeIndicator = document.getElementById('edit-mode-indicator');
+			const editingMessageIdSpan = document.getElementById('editing-message-id');
+			const cancelEditBtn = document.getElementById('cancel-edit-btn') as HTMLButtonElement | null;
+
+			let editingMessageId: string | null = null;
+			let existingAttachmentUrl: string | null = null;
 
 			let selectedFile: File | null = null;
 			let objectUrl: string | null = null;
@@ -809,12 +902,41 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				}
 			}
 
+			function setEditMode(msgId: string | null) {
+				editingMessageId = msgId;
+				if (editingMessageId) {
+					if (editModeIndicator) editModeIndicator.style.display = 'flex';
+					if (editingMessageIdSpan) editingMessageIdSpan.textContent = editingMessageId;
+					if (sendBtn) {
+						const span = sendBtn.querySelector('span');
+						if (span) span.textContent = 'Update Message';
+						else sendBtn.textContent = 'Update Message';
+					}
+				} else {
+					if (editModeIndicator) editModeIndicator.style.display = 'none';
+					if (editingMessageIdSpan) editingMessageIdSpan.textContent = '';
+					existingAttachmentUrl = null;
+					if (sendBtn) {
+						const span = sendBtn.querySelector('span');
+						if (span) span.textContent = 'Send Message';
+						else sendBtn.textContent = 'Send Message';
+					}
+				}
+				updateSendButtonState();
+			}
+
 			function updateSendButtonState() {
 				if (!sendBtn || !channelSelect || !input) return;
 				const hasChannel = Boolean(channelSelect.value);
 				const hasText = input.value.trim().length > 0;
 				const hasFile = Boolean(selectedFile);
-				sendBtn.disabled = !hasChannel || (!hasText && !hasFile);
+				const hasExistingAttachment = Boolean(existingAttachmentUrl);
+
+				if (editingMessageId) {
+					sendBtn.disabled = !hasChannel || (!hasText && !hasFile && !hasExistingAttachment);
+				} else {
+					sendBtn.disabled = !hasChannel || (!hasText && !hasFile);
+				}
 			}
 
 			function handleFileSelection(file: File | null) {
@@ -826,6 +948,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				selectedFile = file;
 
 				if (selectedFile) {
+					existingAttachmentUrl = null;
 					if (fileNameDisplay) fileNameDisplay.textContent = `${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)`;
 					if (imageClearBtn) imageClearBtn.style.display = 'block';
 
@@ -833,20 +956,101 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 					if (previewImage) previewImage.src = objectUrl;
 					if (previewImageContainer) previewImageContainer.style.display = 'block';
 				} else {
-					if (fileNameDisplay) fileNameDisplay.textContent = 'No image selected';
-					if (imageClearBtn) imageClearBtn.style.display = 'none';
-					if (previewImageContainer) previewImageContainer.style.display = 'none';
-					if (previewImage) previewImage.src = '';
+					if (existingAttachmentUrl) {
+						if (fileNameDisplay) fileNameDisplay.textContent = 'Current attachment retained';
+						if (imageClearBtn) imageClearBtn.style.display = 'block';
+						if (previewImageContainer) previewImageContainer.style.display = 'block';
+						if (previewImage) previewImage.src = existingAttachmentUrl;
+					} else {
+						if (fileNameDisplay) fileNameDisplay.textContent = 'No image selected';
+						if (imageClearBtn) imageClearBtn.style.display = 'none';
+						if (previewImageContainer) previewImageContainer.style.display = 'none';
+						if (previewImage) previewImage.src = '';
+					}
 					if (imageFileInput) imageFileInput.value = '';
 				}
 
 				updateSendButtonState();
 			}
 
-			async function sendMessage() {
+			function clearAttachment() {
+				existingAttachmentUrl = null;
+				handleFileSelection(null);
+			}
+
+			async function loadMessage() {
+				if (!channelSelect?.value) {
+					setStatus('Please select a channel first.', 'error');
+					return;
+				}
+
+				const messageId = messageIdInput?.value?.trim();
+				if (!messageId) {
+					setStatus('Please enter a Discord Message ID to load.', 'error');
+					return;
+				}
+
+				const user = getStoredUser();
+				if (!user || !user.token) {
+					setStatus('Please log in with Discord first to load messages.', 'error');
+					return;
+				}
+
+				const channelId = channelSelect.value;
+				const baseUrl = getBackendBaseUrl();
+
+				if (loadMsgBtn) loadMsgBtn.disabled = true;
+				setStatus(`Loading message ${messageId}...`, 'info', false);
+
+				try {
+					const res = await fetch(`${baseUrl}/discord/message?channelId=${encodeURIComponent(channelId)}&messageId=${encodeURIComponent(messageId)}`, {
+						headers: {
+							'Authorization': `Bearer ${user.token}`
+						}
+					});
+
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						throw new Error(data.error || `Failed with status ${res.status}`);
+					}
+
+					if (!data.isBotMessage) {
+						setStatus('Warning: Loaded message was not sent by the bot (only bot messages can be edited).', 'error', false);
+					} else {
+						setStatus(`✓ Loaded message ${messageId}`, 'success');
+					}
+
+					if (input) {
+						input.value = data.content || '';
+						updatePreview();
+					}
+
+					setEditMode(messageId);
+
+					// Handle attachments
+					if (data.attachments && data.attachments.length > 0) {
+						const firstAtt = data.attachments[0];
+						existingAttachmentUrl = firstAtt.url;
+						if (fileNameDisplay) fileNameDisplay.textContent = `Attached: ${firstAtt.filename} (retained)`;
+						if (imageClearBtn) imageClearBtn.style.display = 'block';
+						if (previewImage) previewImage.src = firstAtt.url;
+						if (previewImageContainer) previewImageContainer.style.display = 'block';
+					} else {
+						clearAttachment();
+					}
+				} catch (err: any) {
+					console.error('Error loading message:', err);
+					setStatus(`Error: ${err.message}`, 'error', false);
+				} finally {
+					if (loadMsgBtn) loadMsgBtn.disabled = false;
+					updateSendButtonState();
+				}
+			}
+
+			async function sendOrEditMessage() {
 				if (!channelSelect?.value) return;
 				const hasText = Boolean(input?.value.trim());
-				if (!hasText && !selectedFile) return;
+				if (!hasText && !selectedFile && !existingAttachmentUrl) return;
 				if (!sendBtn) return;
 
 				const channelId = channelSelect.value;
@@ -855,8 +1059,11 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				const user = getStoredUser();
 
 				sendBtn.disabled = true;
-				sendBtn.textContent = 'Sending...';
-				setStatus('Sending message to Discord...', 'info', false);
+				const isEditing = Boolean(editingMessageId);
+				const endpoint = isEditing ? `${baseUrl}/discord/edit` : `${baseUrl}/discord/send`;
+
+				sendBtn.textContent = isEditing ? 'Updating...' : 'Sending...';
+				setStatus(isEditing ? 'Updating Discord message...' : 'Sending message to Discord...', 'info', false);
 
 				try {
 					const headers: Record<string, string> = {};
@@ -869,14 +1076,21 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 						const formData = new FormData();
 						formData.append('channelId', channelId);
 						formData.append('content', content);
+						if (isEditing && editingMessageId) {
+							formData.append('messageId', editingMessageId);
+						}
 						formData.append('file', selectedFile, selectedFile.name);
 						body = formData;
 					} else {
 						headers['Content-Type'] = 'application/json';
-						body = JSON.stringify({ channelId, content });
+						const payload: Record<string, any> = { channelId, content };
+						if (isEditing && editingMessageId) {
+							payload['messageId'] = editingMessageId;
+						}
+						body = JSON.stringify(payload);
 					}
 
-					const res = await fetch(`${baseUrl}/discord/send`, {
+					const res = await fetch(endpoint, {
 						method: 'POST',
 						headers,
 						body: body
@@ -887,14 +1101,24 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 						throw new Error(result.error || `Failed with status ${res.status}`);
 					}
 
-					setStatus('Message sent successfully!', 'success');
-					// Clear selected file after successful send
-					handleFileSelection(null);
+					setStatus(isEditing ? 'Message updated successfully!' : 'Message sent successfully!', 'success');
+					
+					if (isEditing) {
+						// Keep current state or reset to new message? If file was updated, update existingAttachmentUrl
+						if (selectedFile) {
+							handleFileSelection(null);
+						}
+					} else {
+						// Clear selected file after successful send
+						handleFileSelection(null);
+					}
 				} catch (err: any) {
-					console.error('Error sending message:', err);
+					console.error('Error sending/editing message:', err);
 					setStatus(`Error: ${err.message}`, 'error', false);
 				} finally {
-					sendBtn.textContent = 'Send Message';
+					if (sendBtn) {
+						sendBtn.textContent = editingMessageId ? 'Update Message' : 'Send Message';
+					}
 					updateSendButtonState();
 				}
 			}
@@ -941,7 +1165,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 
 			if (imageClearBtn) {
 				imageClearBtn.addEventListener('click', () => {
-					handleFileSelection(null);
+					clearAttachment();
 				});
 			}
 
@@ -954,7 +1178,29 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			}
 
 			if (sendBtn) {
-				sendBtn.addEventListener('click', sendMessage);
+				sendBtn.addEventListener('click', sendOrEditMessage);
+			}
+
+			if (loadMsgBtn) {
+				loadMsgBtn.addEventListener('click', loadMessage);
+			}
+
+			if (cancelEditBtn) {
+				cancelEditBtn.addEventListener('click', () => {
+					setEditMode(null);
+					clearAttachment();
+					if (messageIdInput) messageIdInput.value = '';
+					setStatus('Switched back to new message mode.', 'info');
+				});
+			}
+
+			if (messageIdInput) {
+				messageIdInput.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter') {
+						e.preventDefault();
+						loadMessage();
+					}
+				});
 			}
 
 			if (loginBtn) {
