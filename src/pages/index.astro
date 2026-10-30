@@ -596,20 +596,23 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 
 			async function loadChannels() {
 				if (!channelSelect) return;
+				const user = getStoredUser();
+
+				if (!user) {
+					channelSelect.disabled = true;
+					channelSelect.innerHTML = '<option value="">Log in with Discord to select a channel</option>';
+					setStatus('Please log in with Discord to view your admin servers and channels.', 'info', false);
+					updateSendButtonState();
+					return;
+				}
+
 				channelSelect.disabled = true;
 				channelSelect.innerHTML = '<option value="">Loading channels...</option>';
 				const baseUrl = getBackendBaseUrl();
-				const user = getStoredUser();
-
-				// If user is logged in, fetch channels permitted for this user
-				const endpoint = user ? `${baseUrl}/discord/user-channels` : `${baseUrl}/discord/channels`;
+				const endpoint = `${baseUrl}/discord/user-channels`;
 				const headers: Record<string, string> = {};
-				if (user) {
-					headers['Authorization'] = `Bearer ${user.token}`;
-					setStatus(`Loading channels for @${user.profile.username}...`, 'info', false);
-				} else {
-					setStatus(`Connecting to ${baseUrl}...`, 'info', false);
-				}
+				headers['Authorization'] = `Bearer ${user.token}`;
+				setStatus(`Loading channels for @${user.profile.username}...`, 'info', false);
 
 				try {
 					const res = await fetch(endpoint, { headers });
@@ -628,11 +631,9 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 					channelSelect.innerHTML = '';
 
 					if (!Array.isArray(guilds) || guilds.length === 0) {
-						channelSelect.innerHTML = '<option value="">No servers available</option>';
-						const msg = user
-							? 'No servers found where both you and the bot have permission'
-							: 'Bot has no servers or is starting up';
-						setStatus(msg, 'error', false);
+						channelSelect.innerHTML = '<option value="">No admin servers available</option>';
+						setStatus('No servers found where you are an Admin and the bot is present.', 'error', false);
+						updateSendButtonState();
 						return;
 					}
 
