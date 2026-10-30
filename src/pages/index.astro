@@ -65,6 +65,36 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				padding: 0;
 			}
 
+			/* Discord-style Custom Scrollbar */
+			* {
+				scrollbar-width: thin;
+				scrollbar-color: #1a1b1e #2b2d31;
+			}
+
+			*::-webkit-scrollbar {
+				width: 8px;
+				height: 8px;
+			}
+
+			*::-webkit-scrollbar-track {
+				background-color: #2b2d31;
+				border-radius: 4px;
+			}
+
+			*::-webkit-scrollbar-thumb {
+				background-color: #1a1b1e;
+				border-radius: 4px;
+				border: 2px solid #2b2d31;
+			}
+
+			*::-webkit-scrollbar-thumb:hover {
+				background-color: #111214;
+			}
+
+			*::-webkit-scrollbar-corner {
+				background-color: transparent;
+			}
+
 			body {
 				font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 				background-color: var(--bg-app);
