@@ -707,7 +707,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 					<span id="char-count">0 characters</span>
 				</div>
 				<div class="editor-wrapper">
-					<div class="action-bar">
+					<div id="action-bar" class="action-bar" style="display: none;">
 						<div class="select-wrapper">
 							<label for="channel-select" class="select-label">Channel:</label>
 							<select id="channel-select" disabled>
@@ -750,8 +750,8 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 							<span id="file-name-display" class="file-name-display">No image selected</span>
 							<button type="button" id="image-clear-btn" class="image-clear-btn" title="Remove attachment">✕</button>
 						</div>
-						<div id="status-msg" class="status-bar"></div>
 					</div>
+					<div id="status-msg" class="status-bar"></div>
 
 					<div class="input-box-wrapper">
 						<div id="text-utility-bar" class="text-utility-bar" role="toolbar" aria-label="Discord Markdown Utilities">
@@ -880,6 +880,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			const refreshBtn = document.getElementById('refresh-btn') as HTMLButtonElement | null;
 			const sendBtn = document.getElementById('send-btn') as HTMLButtonElement | null;
 			const statusMsg = document.getElementById('status-msg');
+			const actionBar = document.getElementById('action-bar') as HTMLElement | null;
 
 			const fileChooseBtn = document.getElementById('file-choose-btn') as HTMLButtonElement | null;
 			const imageFileInput = document.getElementById('image-file-input') as HTMLInputElement | null;
@@ -953,9 +954,11 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 							userAvatar.src = 'https://cdn.discordapp.com/embed/avatars/0.png';
 						}
 					}
+					if (actionBar) actionBar.style.display = 'flex';
 				} else {
 					if (loginBtn) loginBtn.style.display = 'flex';
 					if (userChip) userChip.style.display = 'none';
+					if (actionBar) actionBar.style.display = 'none';
 				}
 			}
 
