@@ -1,7 +1,7 @@
 ---
 import { parseDiscordMarkdown } from '../utils/discordMarkdown';
 
-const initialMarkdown = `Hello **world**! Welcome to the Discord markdown previewer.
+const initialMarkdown = `Hello **world**! Welcome to the Discord bot hub.
 
 Here are some examples of what you can type:
 - **Bold text** with \`**bold**\`
@@ -39,7 +39,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 		<link rel="icon" href="https://darketomaly.com/favicon.ico" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Discord Markdown Previewer</title>
+		<title>Discord Bot Hub</title>
 		<style>
 			:root {
 				--bg-app: #1e1f22;
@@ -124,7 +124,7 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				gap: 10px;
 			}
 
-			header .badge {
+			.badge {
 				background-color: var(--accent);
 				color: #fff;
 				font-size: 0.75rem;
@@ -251,6 +251,12 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				align-items: center;
 				justify-content: space-between;
 				border-bottom: 1px solid var(--border-color);
+			}
+
+			.panel-title {
+				display: flex;
+				align-items: center;
+				gap: 8px;
 			}
 
 			.editor-wrapper {
@@ -629,8 +635,8 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 	<body>
 		<header>
 			<div style="display: flex; align-items: center; gap: 10px;">
-				<h1>Discord Markdown Previewer</h1>
-				<span class="badge">Live Preview</span>
+				<h1>Discord Bot Hub</h1>
+				<span class="badge">1.0.0</span>
 			</div>
 			<div class="auth-section">
 				<a
@@ -725,7 +731,10 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 
 			<section class="panel">
 				<div class="panel-header">
-					<span>Read (Discord Preview)</span>
+					<div class="panel-title">
+						<span>Output</span>
+						<span class="badge">Live Preview</span>
+					</div>
 					<span>Formatted</span>
 				</div>
 				<div class="preview-wrapper">
