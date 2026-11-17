@@ -89,6 +89,7 @@
 				const errorEl = document.getElementById('error');
 				const retryBtn = document.getElementById('retry-btn');
 				const canPostToOpener = !!window.opener && !window.opener.closed;
+				const redirectUri = window.location.origin + '/auth/callback';
 
 				function showError(msg: string) {
 					if (spinner) spinner.style.display = 'none';
@@ -119,9 +120,30 @@
 					return;
 				}
 
+				if (canPostToOpener) {
+					try {
+						window.opener.postMessage({
+							type: 'discord-oauth-code',
+							code,
+							redirectUri
+						}, window.location.origin);
+					} catch (postErr) {
+						console.error('Could not post OAuth code to opener:', postErr);
+						showError('Could not return auth code to app window.');
+						return;
+					}
+
+					if (title) title.textContent = 'Success!';
+					if (desc) desc.textContent = 'Login complete. Closing popup...';
+					setTimeout(() => {
+						window.close();
+						window.location.href = '/';
+					}, 400);
+					return;
+				}
+
 				const backendUrl = localStorage.getItem('discord_backend_url') || 'https://api.darketomaly.com';
 				const cleanBase = backendUrl.replace(/\/+$/, '');
-				const redirectUri = window.location.origin + '/auth/callback';
 
 				try {
 					const res = await fetch(`${cleanBase}/discord/auth/token`, {
@@ -136,29 +158,13 @@
 						throw new Error(typeof detail === 'object' ? JSON.stringify(detail) : detail);
 					}
 
-					// Store token & user data in localStorage
 					localStorage.setItem('discord_user_token', data.access_token);
 					localStorage.setItem('discord_user_profile', JSON.stringify(data.user));
 
-					if (canPostToOpener) {
-						try {
-							window.opener.postMessage({
-								type: 'discord-oauth-success',
-								accessToken: data.access_token,
-								user: data.user
-							}, window.location.origin);
-						} catch (postErr) {
-							console.error('Could not post OAuth success to opener:', postErr);
-						}
-					}
-
 					if (title) title.textContent = 'Success!';
-					if (desc) desc.textContent = canPostToOpener ? 'Login complete. Closing popup...' : 'Redirecting back to editor...';
+					if (desc) desc.textContent = 'Redirecting back to editor...';
 
 					setTimeout(() => {
-						if (canPostToOpener) {
-							window.close();
-						}
 						window.location.href = '/';
 					}, 500);
 				} catch (err: any) {

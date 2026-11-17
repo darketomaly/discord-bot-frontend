@@ -965,7 +965,8 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			async function startLogin() {
 				const baseUrl = getBackendBaseUrl();
 				const redirectUri = window.location.origin + '/auth/callback';
-				const isEmbedded = window.top !== window.self;
+				const query = new URLSearchParams(window.location.search);
+				const isEmbedded = window.top !== window.self || query.get('embed') === '1';
 				setStatus('Getting Discord authorization URL...', 'info', false);
 				let loginPopup: Window | null = null;
 
@@ -1003,24 +1004,48 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 				}
 			}
 
+			async function completeLoginWithCode(code: string, redirectUri: string) {
+				const baseUrl = getBackendBaseUrl();
+				const res = await fetch(`${baseUrl}/discord/auth/token`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ code, redirectUri })
+				});
+
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok) {
+					const detail = data.details || data.error || `HTTP ${res.status}`;
+					throw new Error(typeof detail === 'object' ? JSON.stringify(detail) : detail);
+				}
+
+				localStorage.setItem('discord_user_token', data.access_token);
+				localStorage.setItem('discord_user_profile', JSON.stringify(data.user));
+				updateAuthUI();
+				loadChannels();
+				setStatus('✓ Logged in with Discord.', 'success');
+			}
+
 			window.addEventListener('message', (event) => {
 				if (event.origin !== window.location.origin) return;
 				const payload = event.data;
 				if (!payload || typeof payload !== 'object') return;
 
-				if (payload.type === 'discord-oauth-success') {
-					if (!payload.accessToken || !payload.user) return;
-					localStorage.setItem('discord_user_token', payload.accessToken);
-					localStorage.setItem('discord_user_profile', JSON.stringify(payload.user));
-					updateAuthUI();
-					loadChannels();
-					setStatus('✓ Logged in with Discord.', 'success');
-					return;
-				}
-
 				if (payload.type === 'discord-oauth-error') {
 					const message = typeof payload.message === 'string' ? payload.message : 'Discord login failed.';
 					setStatus(`OAuth Error: ${message}`, 'error', false);
+					return;
+				}
+
+				if (payload.type === 'discord-oauth-code') {
+					if (!payload.code || !payload.redirectUri) {
+						setStatus('OAuth Error: Missing authorization code data.', 'error', false);
+						return;
+					}
+
+					completeLoginWithCode(payload.code, payload.redirectUri).catch((err: any) => {
+						const message = err?.message || 'Error exchanging authorization code.';
+						setStatus(`OAuth Error: ${message}`, 'error', false);
+					});
 				}
 			});
 
