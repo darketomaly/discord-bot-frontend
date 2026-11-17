@@ -88,6 +88,7 @@
 				const spinner = document.getElementById('spinner');
 				const errorEl = document.getElementById('error');
 				const retryBtn = document.getElementById('retry-btn');
+				const canPostToOpener = !!window.opener && !window.opener.closed;
 
 				function showError(msg: string) {
 					if (spinner) spinner.style.display = 'none';
@@ -98,6 +99,14 @@
 						errorEl.style.display = 'block';
 					}
 					if (retryBtn) retryBtn.style.display = 'inline-block';
+
+					if (canPostToOpener) {
+						try {
+							window.opener.postMessage({ type: 'discord-oauth-error', message: msg }, window.location.origin);
+						} catch (postErr) {
+							console.error('Could not post OAuth error to opener:', postErr);
+						}
+					}
 				}
 
 				if (errorParam) {
@@ -131,10 +140,25 @@
 					localStorage.setItem('discord_user_token', data.access_token);
 					localStorage.setItem('discord_user_profile', JSON.stringify(data.user));
 
+					if (canPostToOpener) {
+						try {
+							window.opener.postMessage({
+								type: 'discord-oauth-success',
+								accessToken: data.access_token,
+								user: data.user
+							}, window.location.origin);
+						} catch (postErr) {
+							console.error('Could not post OAuth success to opener:', postErr);
+						}
+					}
+
 					if (title) title.textContent = 'Success!';
-					if (desc) desc.textContent = 'Redirecting back to editor...';
+					if (desc) desc.textContent = canPostToOpener ? 'Login complete. Closing popup...' : 'Redirecting back to editor...';
 
 					setTimeout(() => {
+						if (canPostToOpener) {
+							window.close();
+						}
 						window.location.href = '/';
 					}, 500);
 				} catch (err: any) {

@@ -965,17 +965,36 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 			async function startLogin() {
 				const baseUrl = getBackendBaseUrl();
 				const redirectUri = window.location.origin + '/auth/callback';
+				const isEmbedded = window.top !== window.self;
 				setStatus('Getting Discord authorization URL...', 'info', false);
+				let loginPopup: Window | null = null;
 
 				try {
+					if (isEmbedded) {
+						loginPopup = window.open('', 'discord_oauth_login', 'popup=yes,width=540,height=720');
+						if (!loginPopup) {
+							throw new Error('Popup blocked. Please allow popups for this site to login with Discord.');
+						}
+					}
+
 					const targetUrl = `${baseUrl}/discord/auth/url?redirect_uri=${encodeURIComponent(redirectUri)}`;
 					const res = await fetch(targetUrl);
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok || !data.url) {
 						throw new Error(data.error || `HTTP ${res.status} from ${targetUrl}`);
 					}
+
+					if (isEmbedded && loginPopup) {
+						loginPopup.location.href = data.url;
+						setStatus('Please complete Discord login in the popup window.', 'info', false);
+						return;
+					}
+
 					window.location.href = data.url;
 				} catch (err: any) {
+					if (loginPopup && !loginPopup.closed) {
+						loginPopup.close();
+					}
 					console.error('Login error:', err);
 					const msg = err.name === 'TypeError'
 						? `CORS / Network Error: Could not reach ${baseUrl}/discord/auth/url`
@@ -983,6 +1002,27 @@ const initialHtml = parseDiscordMarkdown(initialMarkdown);
 					setStatus(`OAuth Error: ${msg}`, 'error', false);
 				}
 			}
+
+			window.addEventListener('message', (event) => {
+				if (event.origin !== window.location.origin) return;
+				const payload = event.data;
+				if (!payload || typeof payload !== 'object') return;
+
+				if (payload.type === 'discord-oauth-success') {
+					if (!payload.accessToken || !payload.user) return;
+					localStorage.setItem('discord_user_token', payload.accessToken);
+					localStorage.setItem('discord_user_profile', JSON.stringify(payload.user));
+					updateAuthUI();
+					loadChannels();
+					setStatus('✓ Logged in with Discord.', 'success');
+					return;
+				}
+
+				if (payload.type === 'discord-oauth-error') {
+					const message = typeof payload.message === 'string' ? payload.message : 'Discord login failed.';
+					setStatus(`OAuth Error: ${message}`, 'error', false);
+				}
+			});
 
 			function logout() {
 				localStorage.removeItem('discord_user_token');
